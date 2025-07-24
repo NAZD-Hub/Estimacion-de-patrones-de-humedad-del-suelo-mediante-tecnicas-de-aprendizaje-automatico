@@ -1,0 +1,32 @@
+from dash import Dash, dcc, html
+import plotly.express as px
+import sqlite3
+import pandas as pd
+
+app = Dash(__name__)
+
+def obtener_datos():
+    conexion = sqlite3.connect("lecturas_sensor.db")
+    df = pd.read_sql_query("SELECT * FROM lecturas", conexion)
+    conexion.close()
+    return df
+
+df = obtener_datos()
+
+fig = px.line(
+    df,
+    x="fecha_hora",  
+    y="humedad",     
+    title="Mediciones de Humedad del Sensor 3001-TH",
+    labels={
+        "fecha_hora": "Tiempo",  
+        "humedad": "Humedad (%)"       
+    })
+app.layout = html.Div([
+    html.H1("Dashboard de Humedad"),
+    dcc.Graph(figure=fig)
+])
+
+if __name__ == "__main__":
+    app.run_server(debug=True)
+

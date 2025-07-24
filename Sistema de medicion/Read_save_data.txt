@@ -1,0 +1,109 @@
+import time
+import sqlite3
+from pymodbus.client import ModbusSerialClient
+
+# Configuración el cliente Modbus
+client = ModbusSerialClient(
+port='COM7',  
+baudrate=9600,
+parity='N',
+stopbits=1,
+bytesize=8,
+timeout=1
+)
+
+# Función para leer registros del sensor
+def leer_registros():
+start_address = 0x0001  # Dirección de registro inicial
+length = 2              
+
+try:
+# Lectura de registros
+response = client.read_holding_registers(start_address, length)
+
+if response.isError():
+print(f"Error en la respuesta: {response}")
+return None
+else:
+# Obtener los valores de los registros
+reg_1 = response.registers[0]
+reg_2 = response.registers[1]
+
+# Combinar registros para obtener el valor completo (32 bits)
+valor_hex = (reg_1 << 16) | reg_2
+#print(f"Valor hexadecimal combinado: 0x{valor_hex:08X}")
+
+# Convertir a decimal
+valor_decimal = int(valor_hex)
+#print(f"Valor decimal de humedad: {valor_decimal}")
+
+# Ajustar el valor de escala a porcentaje 
+humedad = valor_decimal / 10.0  # Ajusta esto según el sensor
+print(f"Humedad: {humedad:.1f}%\n")
+
+            return humedad
+    
+    except Exception as e:
+        print(f"Error durante la lectura: {e}")
+        return None
+
+# Configuración de la base de datos SQLite
+def crear_base_datos():
+    conexion = sqlite3.connect("lecturas_sensor.db")
+    cursor = conexion.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS lecturas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha_hora TEXT NOT NULL,
+            humedad REAL NOT NULL
+        )
+    ''')
+    conexion.commit()
+    conexion.close()
+
+# Función para almacenar una lectura en la base de datos
+def guardar_en_base_datos(humedad):
+    conexion = sqlite3.connect("lecturas_sensor.db")
+    cursor = conexion.cursor()
+    fecha_hora = time.strftime("%Y-%m-%d %H:%M:%S")
+    cursor.execute("INSERT INTO lecturas (fecha_hora, humedad) VALUES (?, ?)", (fecha_hora, humedad))
+    conexion.commit()
+    conexion.close()
+
+# Crear la base de datos y la tabla
+crear_base_datos()
+
+# Conectar al cliente Modbus
+if not client.connect():
+    print("Error: No se pudo conectar al sensor.")
+else:
+    print("Conectado al sensor.")
+
+# Inicializar un contador de lecturas
+contador_lecturas = 0
+
+# Bucle para tomar lecturas, almacenar en la base de datos y preguntar al usuario después de 20 lecturas
+try:
+    while True:
+        humedad = leer_registros()  # Leer datos del sensor
+        if humedad is not None:
+            guardar_en_base_datos(humedad)  # Guardar la lectura en la base de datos
+            print("Lectura almacenada en la base de datos.")
+        
+        contador_lecturas += 1
+        time.sleep(1)  # Esperar 1 segundo antes de la siguiente lectura
+
+        # Preguntar al usuario si desea continuar después de 20 lecturas
+        if contador_lecturas == 20:
+            user_input = input("¿Deseas continuar tomando lecturas? (s/n): ")
+            if user_input.lower() != 's':
+                print("Cerrando el programa...")
+                break  # Rompe el bucle y termina el programa
+            else:
+                contador_lecturas = 0  # Reiniciar el contador después de la pregunta
+
+except KeyboardInterrupt:
+    print("Lectura detenida por el usuario.")
+
+# Cerrar la conexión Modbus
+client.close()

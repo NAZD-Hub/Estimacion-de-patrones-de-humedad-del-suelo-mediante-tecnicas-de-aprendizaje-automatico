@@ -1,0 +1,26 @@
+import sqlite3
+
+# Función para leer y mostrar las lecturas almacenadas en la base de datos
+def leer_lecturas():
+    # Conectar a la base de datos
+    conexion = sqlite3.connect("lecturas_sensor.db")
+    cursor = conexion.cursor()
+    
+    try:
+        # Ejecutar consulta para obtener todas las lecturas
+        cursor.execute("SELECT * FROM lecturas")
+        filas = cursor.fetchall()
+        
+        # Mostrar las lecturas
+        print(f"\n{'ID':<5} {'Fecha y Hora':<20} {'Humedad (%)':<10}")
+        print("-" * 35)
+        for fila in filas:
+            print(f"{fila[0]:<5} {fila[1]:<20} {fila[2]:<10.1f}")
+    except Exception as e:
+        print(f"Error al leer la base de datos: {e}")
+    finally:
+        # Cerrar la conexión
+        conexion.close()
+
+# Llamar a la función para leer y mostrar las lecturas
+leer_lecturas()
